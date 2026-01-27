@@ -7,8 +7,11 @@
     "dev": "nodemon server.js"
   },
   "dependencies": {
+    "color": "^5.0.3",
+    "colors": "^1.4.0",
     "dotenv": "^17.2.3",
-    "express": "^4.21.2"
+    "express": "^4.22.1",
+    "mongoose": "^9.1.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
