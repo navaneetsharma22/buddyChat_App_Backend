@@ -1,14 +1,10 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
+
 const userRoutes = require("./routes/userRoutes");
-
-const {} = require("./middleware/errorMidsleware")
-
-
-
-require("dotenv").config();
-
+const chatRoutes = require("./routes/chatRoutes");
+const { notFound, errorHandler } = require("./middleware/errorMidsleware");
 
 dotenv.config();
 connectDB();
@@ -16,101 +12,23 @@ connectDB();
 const app = express();
 app.use(express.json());
 
+// Test route
 app.get("/", (req, res) => {
-  res.send("API is Running Successfully");
+  res.send("API is running successfully");
 });
 
+// Chat routes
+app.use("/api/chat", chatRoutes);
 
-
-
-
-// app.get("/api/chat", (req, res) => {
-//   res.send(chats);
-// });
-
-// app.get("/api/chat/:id", (req, res) => {
-// //   console.log(req.params.id);
-
-//   const singleChat = chats.find((c) => c._id === req.params.id);
-//   res.send(singleChat);
-// });
-
-
-
+// User routes
 app.use("/api/user", userRoutes);
 
-app.user(notFound)
-app.user(errorHandler)
-
-  
-
+// Error handling
+app.use(notFound);
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Server Started on Port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -11,7 +11,7 @@ const mongoose = require("mongoose");
 
 const chatModel = mongoose.Schema({
     chatName: { type: String , trim: true },
-    isGropChat: {type:boolean ,default:false},
+    isGropChat: {type:Boolean ,default:false},
 
     users:[{
         type: mongoose.Schema.Types.ObjectId,
@@ -45,4 +45,4 @@ const chatModel = mongoose.Schema({
 
 const Chat = mongoose.model("Chat", chatModel);
 
-module.export = Chat;
+module.exports = Chat;
