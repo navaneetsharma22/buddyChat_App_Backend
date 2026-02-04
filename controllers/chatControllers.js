@@ -2,7 +2,7 @@ const asyncHandler = require("express-async-handler");
 const Chat = require("../models/chatModel");
 const User = require("../models/userModel");
 
-// ACCESS OR CREATE CHAT
+// ================= ACCESS OR CREATE CHAT =================
 const accessChat = asyncHandler(async (req, res) => {
   const { userId } = req.body;
 
@@ -42,8 +42,7 @@ const accessChat = asyncHandler(async (req, res) => {
   res.status(200).send(fullChat);
 });
 
-
-// FETCH ALL CHATS
+// ================= FETCH ALL CHATS =================
 const fetchChats = asyncHandler(async (req, res) => {
   try {
     let results = await Chat.find({
@@ -52,7 +51,7 @@ const fetchChats = asyncHandler(async (req, res) => {
       .populate("users", "-password")
       .populate("groupAdmin", "-password")
       .populate("latestMessage")
-      .sort({ updatedAt: -1 }); // ✅ correct timestamp
+      .sort({ updatedAt: -1 });
 
     results = await User.populate(results, {
       path: "latestMessage.sender",
@@ -66,47 +65,42 @@ const fetchChats = asyncHandler(async (req, res) => {
   }
 });
 
-//createGroupChat
- const createGroupChat = asyncHandler(async (req,res) => { 
-    if(!req.body.users || !req.body.name) {
-        return res.status(400).send({message: "Please fill the feild"})
-    }
+// ================= CREATE GROUP CHAT =================
+const createGroupChat = asyncHandler(async (req, res) => {
+  if (!req.body.users || !req.body.name) {
+    return res.status(400).send({ message: "Please fill the field" });
+  }
 
-    const users = req.body.users;
+  const users = req.body.users;
 
+  if (users.length < 2) {
+    return res
+      .status(400)
+      .send("More than 2 users are required to form a group chat");
+  }
 
-    if (users.length <2 ) {
-        return res
-          .status(400)
-          .send("More than 2 users are required to from a group chat");
-    }
+  users.push(req.user);
 
-    users.push(req.user);
+  try {
+    const groupChat = await Chat.create({
+      chatName: req.body.name,
+      users: users,
+      isGroupChat: true,
+      groupAdmin: req.user,
+    });
 
-    try {
-        const groupChat = await Chat.create({
-            chatName: req.body.name,
-            users:users,
-            isGroupChat: true,
-            groupAdmin: req.user,
-        });
+    const fullGroupChat = await Chat.findOne({ _id: groupChat._id })
+      .populate("users", "-password")
+      .populate("groupAdmin", "-password");
 
-        const fullGroupChat = await Chat.findOne({_id : groupChat._id})
-         .populate("users" , "-password")
-         .populate("groupAdmin" , "-password");
-
-          res.status(200).json(fullGroupChat);
-
-    }
-    catch(error){
-      res.status(400);
-      throw new Error(error.message);
-
-    }
-     
+    res.status(200).json(fullGroupChat);
+  } catch (error) {
+    res.status(400);
+    throw new Error(error.message);
+  }
 });
 
-//Rename Group
+// ================= RENAME GROUP =================
 const renameGroup = asyncHandler(async (req, res) => {
   const { chatId, chatName } = req.body;
 
@@ -126,7 +120,7 @@ const renameGroup = asyncHandler(async (req, res) => {
   res.json(updatedChat);
 });
 
-//addToGroup
+// ================= ADD TO GROUP =================
 const addToGroup = asyncHandler(async (req, res) => {
   const { chatId, userId } = req.body;
 
@@ -146,9 +140,7 @@ const addToGroup = asyncHandler(async (req, res) => {
   res.json(added);
 });
 
-
-
-//removeFromGroup
+// ================= REMOVE FROM GROUP =================
 const removeFromGroup = asyncHandler(async (req, res) => {
   const { chatId, userId } = req.body;
 
@@ -169,12 +161,36 @@ const removeFromGroup = asyncHandler(async (req, res) => {
 });
 
 
+// 🆕 ================= DELETE CHAT =================
+const deleteChat = asyncHandler(async (req, res) => {
+  const chatId = req.params.chatId;
+
+  const chat = await Chat.findById(chatId);
+
+  if (!chat) {
+    res.status(404);
+    throw new Error("Chat not found");
+  }
+
+  // 🔐 Only allow if user is in the chat
+  if (!chat.users.includes(req.user._id)) {
+    res.status(403);
+    throw new Error("Not authorized to delete this chat");
+  }
+
+  await Chat.findByIdAndDelete(chatId);
+
+  res.status(200).json({ message: "Chat deleted successfully" });
+});
 
 
-
-
-
-
-
-
-module.exports = { accessChat, fetchChats, createGroupChat ,renameGroup,addToGroup,removeFromGroup };
+// 🆕 ADDED deleteChat in exports
+module.exports = {
+  accessChat,
+  fetchChats,
+  createGroupChat,
+  renameGroup,
+  addToGroup,
+  removeFromGroup,
+  deleteChat, // 🆕
+};
