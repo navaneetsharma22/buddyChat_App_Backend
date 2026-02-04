@@ -1,5 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const cors = require("cors");
 const connectDB = require("./config/db");
 
 const userRoutes = require("./routes/userRoutes");
@@ -11,22 +12,40 @@ dotenv.config();
 connectDB();
 
 const app = express();
+
+/* ================= MIDDLEWARE ================= */
+
+// Parse JSON
 app.use(express.json());
 
-// ================= ROUTES =================
+// CORS (REST APIs)
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://buddy-chat-app-frontend.vercel.app",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true,
+  })
+);
+
+/* ================= ROUTES ================= */
 
 app.get("/", (req, res) => {
-  res.send("API is running successfully");
+  res.send("API is running successfully 🚀");
 });
 
-app.use("/api/chat", chatRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
+
+/* ================= ERROR HANDLERS ================= */
 
 app.use(notFound);
 app.use(errorHandler);
 
-// ================= SERVER =================
+/* ================= SERVER ================= */
 
 const PORT = process.env.PORT || 5000;
 
@@ -34,19 +53,24 @@ const server = app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
-// ================= SOCKET.IO =================
+/* ================= SOCKET.IO ================= */
 
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: "http://localhost:5173",
+    origin: [
+      "http://localhost:5173",
+      "https://buddy-chat-app-frontend.vercel.app",
+    ],
+    methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
 io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
+  console.log("🔌 Socket connected:", socket.id);
 
-  // User joins personal room
+  // Setup user room
   socket.on("setup", (userData) => {
     socket.join(userData._id);
     socket.emit("connected");
@@ -55,33 +79,26 @@ io.on("connection", (socket) => {
   // Join chat room
   socket.on("join chat", (room) => {
     socket.join(room);
-    console.log("Joined room:", room);
+    console.log("📥 Joined room:", room);
   });
 
   // Typing indicators
-  socket.on("typing", (room) => {
-    socket.to(room).emit("typing");
-  });
+  socket.on("typing", (room) => socket.to(room).emit("typing"));
+  socket.on("stop typing", (room) => socket.to(room).emit("stop typing"));
 
-  socket.on("stop typing", (room) => {
-    socket.to(room).emit("stop typing");
-  });
-
-  // Send message in real time
+  // New message
   socket.on("new message", (newMessageReceived) => {
     const chat = newMessageReceived.chat;
 
-    if (!chat.users) return;
+    if (!chat || !chat.users) return;
 
     chat.users.forEach((user) => {
       if (user._id === newMessageReceived.sender._id) return;
-
-      // Send message to each user room
       socket.to(user._id).emit("message recieved", newMessageReceived);
     });
   });
 
   socket.on("disconnect", () => {
-    console.log("Socket disconnected:", socket.id);
+    console.log("❌ Socket disconnected:", socket.id);
   });
 });
