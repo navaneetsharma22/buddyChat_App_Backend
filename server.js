@@ -1,6 +1,7 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const cors = require("cors");
+const path = require("path");
 const connectDB = require("./config/db");
 
 const userRoutes = require("./routes/userRoutes");
@@ -13,12 +14,9 @@ connectDB();
 
 const app = express();
 
-/* ================= MIDDLEWARE ================= */
-
-// Parse JSON
 app.use(express.json());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// CORS (REST APIs)
 app.use(
   cors({
     origin: [
@@ -30,30 +28,22 @@ app.use(
   })
 );
 
-/* ================= ROUTES ================= */
-
 app.get("/", (req, res) => {
-  res.send("API is running successfully 🚀");
+  res.send("API is running successfully");
 });
 
 app.use("/api/user", userRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/message", messageRoutes);
 
-/* ================= ERROR HANDLERS ================= */
-
 app.use(notFound);
 app.use(errorHandler);
-
-/* ================= SERVER ================= */
 
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
-
-/* ================= SOCKET.IO ================= */
 
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
@@ -67,38 +57,74 @@ const io = require("socket.io")(server, {
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("🔌 Socket connected:", socket.id);
+const onlineUsers = new Set();
 
-  // Setup user room
+io.on("connection", (socket) => {
   socket.on("setup", (userData) => {
+    if (!userData?._id) return;
+
+    socket.userId = userData._id;
     socket.join(userData._id);
+    onlineUsers.add(userData._id);
+    io.emit("online users", Array.from(onlineUsers));
     socket.emit("connected");
   });
 
-  // Join chat room
   socket.on("join chat", (room) => {
+    if (!room) return;
     socket.join(room);
-    console.log("📥 Joined room:", room);
   });
 
-  // Typing indicators
-  socket.on("typing", (room) => socket.to(room).emit("typing"));
-  socket.on("stop typing", (room) => socket.to(room).emit("stop typing"));
+  socket.on("typing", (room) => {
+    if (!room) return;
+    socket.volatile.to(room).emit("typing");
+  });
 
-  // New message
+  socket.on("stop typing", (room) => {
+    if (!room) return;
+    socket.volatile.to(room).emit("stop typing");
+  });
+
   socket.on("new message", (newMessageReceived) => {
-    const chat = newMessageReceived.chat;
+    const chat = newMessageReceived?.chat;
 
-    if (!chat || !chat.users) return;
+    if (!chat?.users?.length) return;
 
-    chat.users.forEach((user) => {
-      if (user._id === newMessageReceived.sender._id) return;
-      socket.to(user._id).emit("message recieved", newMessageReceived);
+    chat.users.forEach((chatUser) => {
+      if (chatUser._id === newMessageReceived.sender._id) return;
+      socket.to(chatUser._id).emit("message recieved", newMessageReceived);
     });
   });
 
+  socket.on("message updated", (updatedMessage) => {
+    const chat = updatedMessage?.chat;
+
+    if (!chat?.users?.length) return;
+
+    chat.users.forEach((chatUser) => {
+      socket.to(chatUser._id).emit("message updated", updatedMessage);
+    });
+  });
+
+  socket.on("message deleted", (deletedMessage) => {
+    const chat = deletedMessage?.chat;
+
+    if (!chat?.users?.length) return;
+
+    chat.users.forEach((chatUser) => {
+      socket.to(chatUser._id).emit("message deleted", deletedMessage);
+    });
+  });
+
+  socket.on("messages seen", ({ chatId, userId }) => {
+    if (!chatId || !userId) return;
+    socket.to(chatId).emit("messages seen", { chatId, userId });
+  });
+
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id);
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+      io.emit("online users", Array.from(onlineUsers));
+    }
   });
 });
