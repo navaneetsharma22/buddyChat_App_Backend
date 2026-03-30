@@ -13,16 +13,34 @@ dotenv.config();
 connectDB();
 
 const app = express();
+const clientUrlList = (process.env.CLIENT_URLS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowedOriginPatterns = [
+  /^http:\/\/localhost(?::\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
+  /^https:\/\/buddy-chat-app-frontend(?:-[a-z0-9-]+)?\.vercel\.app$/,
+];
+const isAllowedOrigin = (origin = "") =>
+  clientUrlList.includes(origin) ||
+  allowedOriginPatterns.some((pattern) => pattern.test(origin));
+const corsOriginDelegate = (origin, callback) => {
+  if (!origin || isAllowedOrigin(origin)) {
+    callback(null, true);
+    return;
+  }
+
+  callback(new Error("Not allowed by CORS"));
+};
+const socketCorsOrigins = [...clientUrlList, ...allowedOriginPatterns];
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://buddy-chat-app-frontend.vercel.app",
-    ],
+    origin: corsOriginDelegate,
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
   })
@@ -48,10 +66,7 @@ const server = app.listen(PORT, () => {
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://buddy-chat-app-frontend.vercel.app",
-    ],
+    origin: socketCorsOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
