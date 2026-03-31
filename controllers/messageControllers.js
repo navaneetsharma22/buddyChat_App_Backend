@@ -215,7 +215,13 @@ const markChatAsSeen = asyncHandler(async (req, res) => {
   const { chatId } = req.params;
 
   await Message.updateMany(
-    { chat: chatId },
+    {
+      chat: chatId,
+      $or: [
+        { readBy: { $ne: req.user._id } },
+        { deliveredTo: { $ne: req.user._id } },
+      ],
+    },
     {
       $addToSet: {
         readBy: req.user._id,
