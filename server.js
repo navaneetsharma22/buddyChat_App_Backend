@@ -33,7 +33,6 @@ const corsOriginDelegate = (origin, callback) => {
 
   callback(new Error("Not allowed by CORS"));
 };
-const socketCorsOrigins = [...clientUrlList, ...allowedOriginPatterns];
 
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -66,7 +65,7 @@ const server = app.listen(PORT, () => {
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: socketCorsOrigins,
+    origin: corsOriginDelegate,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -100,7 +99,7 @@ io.on("connection", (socket) => {
     socket.volatile.to(room).emit("stop typing");
   });
 
-  socket.on("new message", (newMessageReceived) => {
+  socket.on("new message", (newMessageReceived, ack) => {
     const chat = newMessageReceived?.chat;
 
     if (!chat?.users?.length) return;
@@ -109,6 +108,10 @@ io.on("connection", (socket) => {
       if (chatUser._id === newMessageReceived.sender._id) return;
       socket.to(chatUser._id).emit("message recieved", newMessageReceived);
     });
+
+    if (typeof ack === "function") {
+      ack({ ok: true });
+    }
   });
 
   socket.on("message updated", (updatedMessage) => {
